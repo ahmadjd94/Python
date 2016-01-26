@@ -7,16 +7,16 @@
           
 				    by Ahmad Da'na #20121024 ,instructor : Dr.Ali Hadi  							"""
 #ADD MORE PORTS RANGE CHECKING - TIME CLASS TO BUILD A TIME REQUIRED TO SCAN OBJECT
-from scapy.all import *
+
 from threading import Thread,Lock
 from socket import*
 from socket import error as err
-import logging
+import time,sys,logging
 from queue import Queue
 from multiprocessing import Process
 logging.basicConfig(filename='logger.log',level=logging.DEBUG)
-import time
 from pprint import pprint
+from timeit import timeit,default_timer
 
 ######################### TIME CLASS DEFINITION ######################
 """class 'time' for estimating the time required to perform the scanning,overloaded function str() to perform direct printing of the time object and (-=) operator to perform unary subtraction operations"""
@@ -64,13 +64,17 @@ class Dtime :
 
 def Scanner(port):
 
-	global vLock, threadID,dom
+
+	global vLock, threadID,dom,Timeout, estimated
+
 	clientSocket = socket(AF_INET,SOCK_STREAM)
 	s=str(port)
 	
 	try: 				#handling socket exception :timeouts,connctionrefused
+
 		vLock.acquire() 	# acquire the lock to modify global variables
-		clientSocket.settimeout(.2)	#setting time out limit for connection request to 0.2 seconds
+		
+		clientSocket.settimeout(Timeout)#setting time out limit for connection request to global timeout seconds
 		clientSocket.connect((dom,port))
 		clientSocket.shutdown(SHUT_RDWR)#force shutdown the connection socket /close function will keep the CLIENT waiting for a response, will only shut down the socket if the server sends an ACK
 		logging.info("connection was successful to port "+s)
@@ -92,14 +96,15 @@ def Scanner(port):
 		logging.info("connection was unsuccessful to port "+s)
 				
 	finally:
+		
 		vLock.release() # release the lock of acquired lock
 		
 ################################## function Scanner end of definition #######################
 
-##coundown definition
+##################################        Coundown definition 		  #######################
 """countdown function : estimates the time required by the whole program to give results"""
 def countdown ():
-		
+
 		global estimated #globally defined time object
 		while estimated.Raw()>=1:
 			if estimated.Raw()>=3600 and estimated.Raw()<7200: #if scanning would take more than hour
@@ -117,45 +122,99 @@ def countdown ():
 			if estimated.Raw()<=0:
 				break
 ######end of definition
-		
-if __name__ =="__main__":
-	
-	por=""
-	while type(por)==str or type(por1)==str: 
-		try:	
-			por1=int(input("enter the initial ports range you would like to begin scanning with\n"))
-			por=int(input("enter the final port you would like to finish  scanning with\n"))
-			if (por<1 or por>65355) or(por1<1 or por1>65355):
-				por=""
-				raise Exception
-		
-				
+
+if __name__ =="__main__": 			  #main 
+	Timeout=0.2            #default timeout
+	if len(sys.argv) <2 or sys.argv[1]=="-h": #check for input and print help message
+			print ("""to use the port scanner use the following commands : 
+	-h : for help  
+	-i : to scan over a known ip adress ( will scan the every port if no port or port range was provided)
+	-d xyz.abc : scan domain xyz.abc
+	-o : scan over single port
+	-t : to specifiy the timeout for scanning port (default is 0.2 seconds, maybe too fast for slow connections
+	-r x y: scan over a range of ports from x to y
+*scanning time is affected by target location , scanning an adress in your local network will be faster than scanning a web adress"""
+				 )
+			sys.exit()
+	if '-t' in sys.argv :
+		try :
+			Timeout= float(sys.argv[sys.argv.index("-t")+1])
 		except:
+			print ("""make sure to provide a float or integer timeout after -t argument  Example :\n-t 0.4""")
+			sys.exit()
+
+
+	if "-i" in sys.argv and "-d" in sys.argv:
+		print ("please enter a valid type of target domain or IP ")
+		sys.exit()
+
+	elif "-i" in sys.argv :
+		try:
+			site=dom=sys.argv[sys.argv.index('-i')+1]
+			inet_aton(sys.argv[sys.argv.index('-i')+1])
+		except:
+			print ("please enter a valid IP format")
+			sys.exit()
+	elif "-d" in sys.argv :
+		try:
+
+			site=sys.argv[sys.argv.index('-d')+1]
+			dom=gethostbyname(site)
+		except :
+			print ("""make sure to specifiy a valid website after -d ,example:
+				-d google.com""")
+			sys.exit()
+
+
+	if "-r" not in sys.argv and '-o' not in sys.argv: 
+		ports=list(range(1,(2**16)-1))
+	if "-r" in sys.argv :            #checking range params
+		i=sys.argv.index('-r')
+		try:	
+			por1=int(sys.argv[i+1])
+			por=int(sys.argv[i+2])
+			if (por<1 or por>65355) or(por1<1 or por1>65355):
+				raise Exception
+			else:
+
+				if por1>por:
+					ports =list(range(por,por1+1)) # create a list of ports to scan through	
+				elif por>por1:
+					ports =list(range(por1,por+1)) # create a list of ports to scan through
+				else :
+					ports=[por]
+			
+		except:
+			print ("""please make sure you specifiy to initial port and final port right after -r 
+				example :
+
+				-r 1 100   ->this will scan port from to 100 inclusive	""")
+
 			print("please enter an valid integer number between 1 to 65355\n")
+			sys.exit()
+	elif "-o" in sys.argv:
+		i=sys.argv.index('-o')
+		try:
+			ports=[int(sys.argv[i+1])]
+		except:
+			print ("make sure you entered and integer port >=1 and less that 65356")
+			sys.exit()
 			
 	q=Queue() # create a queue to store jobs
 	
-	if por1>por:
-		ports =list(range(por,por1+1)) # create a list of ports to scan through	
-	elif por>por1:
-		ports =list(range(por1,por+1)) # create a list of ports to scan through
-	else :
-		ports=[por]
-		
-	typ=(input('enter IP if you are scanning over known ip , Url for domain name'))	
-	if typ=="ip"or"IP":
-		site=dom=input("enter web site you would scan \n")
-	else:
-		site=input("enter web site you would scan \n")
-		dom=gethostbyname(site) #r3turn the IP of the entered domain
+	
+	print ("timeout =",Timeout)
 	print("scanning target :",site ,' at ',dom)
 	logging.info("scanning target : "+site +' at '+dom)
 	OpenPorts = [] #this list will store the list of opened ports 
 	vLock = Lock()
+	iLock=Lock()
 	threads=[]
 	threadsList = [Thread(target=Scanner, args=(port,), daemon=True) for port in ports] #PRODUCING TASKS
-	estimated=Dtime(len(threadsList)*.2)
-	
+	estimated=Dtime(len(threadsList)*Timeout)
+
+	now=default_timer()
+	  			
 	p=Process(target=countdown,daemon=True) #this is the countdown parallel process initializing
 	p.start()   				#starting the parallel process
 	
@@ -179,12 +238,17 @@ if __name__ =="__main__":
 		[thread.start() for thread in threads] #CONSUMING TASKS
 		[thread.join() for thread in threads]	#releasing consumed tasks resources a
 		
-	Services = dict((scapy.all.TCP_SERVICES[k], k) for k in TCP_SERVICES.keys())# this will create a reversed dictionary containing a {service : port } mapping
+	
 	
 	print("\n Request Results for ",dom,":")
 	for each in OpenPorts:
-		print("server is listening for ",Services[each],' connection at port ',each )
+		
+		try:
+			print("server listening for ",getservbyport(each),"at port",each)
+		except :
+			print("unknown service running at port",each)
+	p.terminate() #release the countdown process resources after finishing countdown  (instead of join , which will wait until end of the process even if the scanner scan every specified port , in example scanning lan hosts ports)
 	
-	p.join() #release the countdown process resources after finishing countdown
-
 	pprint(OpenPorts)
+	now2=default_timer()
+	print ("actuall time ",int(now2-now),'seconds')
