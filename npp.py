@@ -17,6 +17,8 @@ from multiprocessing import Process
 logging.basicConfig(filename='logger.log',level=logging.DEBUG)
 from pprint import pprint
 from timeit import timeit,default_timer
+from bs4 import BeautifulSoup
+import urllib
 
 ######################### TIME CLASS DEFINITION ######################
 """class 'time' for estimating the time required to perform the scanning,overloaded function str() to perform direct printing of the time object and (-=) operator to perform unary subtraction operations"""
@@ -133,7 +135,10 @@ if __name__ =="__main__": 			  #main
 	-o : scan over single port
 	-t : to specifiy the timeout for scanning port (default is 0.2 seconds, maybe too fast for slow connections
 	-r x y: scan over a range of ports from x to y
-*scanning time is affected by target location , scanning an adress in your local network will be faster than scanning a web adress"""
+	-s enables server detection
+*scanning time is affected by target location , scanning an adress in your local network will be faster than scanning a web adress
+"""
+
 				 )
 			sys.exit()
 	if '-t' in sys.argv :
@@ -252,3 +257,15 @@ if __name__ =="__main__": 			  #main
 	pprint(OpenPorts)
 	now2=default_timer()
 	print ("actuall time ",int(now2-now),'seconds')
+
+	if '-s' in sys.argv:
+		try:
+			
+			z=urllib.request.urlopen("http://"+site)
+
+			print ("server is :"+z.getheader("Server"))
+		except:
+			print ("failed detecting server")
+
+
+
